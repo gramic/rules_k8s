@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-basic-python-deployment-v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: basic-python-app
+  template:
+    metadata:
+      labels:
+        app: basic-python-app
+        version: "v2"
+    spec:
+      containers:
+        - args:
+            - --version
+          image: eu.gcr.io/zp-zoneprojects/rules_k8s_test:basic_python
+          imagePullPolicy: Always
+          name: basic-python-app
+      serviceAccountName: zoneprojects-serviceaccount

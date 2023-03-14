@@ -1,0 +1,69 @@
+module(
+    name = "example_bzlmod",
+    version = "0.0.0",
+    compatibility_level = 1,
+)
+
+bazel_dep(name = "rules_k8s", version = "0.0.0-v0.7", repo_name = "io_bazel_rules_k8s")
+local_path_override(
+    module_name = "rules_k8s",
+    path = "../..",
+)
+
+k8s = use_extension("@io_bazel_rules_k8s//k8s:extensions.bzl", "k8s")
+k8s.defaults(
+    name = "k8s_cluster_object",
+    cluster = "takcuguot7",
+)
+use_repo(k8s, "k8s_cluster_object")
+
+bazel_dep(name = "platforms", version = "0.0.6")
+bazel_dep(name = "bazel_skylib", version = "1.4.1")
+bazel_dep(name = "rules_go", version = "0.38.1", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "gazelle", version = "0.29.0", repo_name = "bazel_gazelle")
+
+#####################################################################
+# rules_docker
+#####################################################################
+
+bazel_dep(
+    name = "rules_docker",
+    version = "0.0.0-v0.25.0",
+    repo_name = "io_bazel_rules_docker",
+)
+local_path_override(
+    module_name = "rules_docker",
+    path = "~/rules_docker",
+)
+
+container = use_extension("@io_bazel_rules_docker//:extensions.bzl", "container")
+container.pull(
+    name = "python3_distroless",
+    digest = "sha256:cb5d33330fd86cd5ffa12a5ae852da448c5cf5a7daccc04ea226b3a27c3b29e6",
+    registry = "gcr.io",
+    repository = "distroless/python3-debian11",
+    # tag field is ignored since digest is set
+    # tag = "debug-nonroot",
+)
+use_repo(container, "python3_distroless")
+
+#####################################################################
+# Python
+#####################################################################
+
+bazel_dep(name = "rules_python", version = "0.19.0")
+
+pip = use_extension("@rules_python//python:extensions.bzl", "pip")
+use_repo(pip, "pip")
+
+# (Optional) Register a specific python toolchain instead of using the host version
+python = use_extension("@rules_python//python:extensions.bzl", "python")
+python.toolchain(
+    name = "python3_9",
+    python_version = "3.9",
+)
+use_repo(python, "python3_9_toolchains")
+
+register_toolchains(
+    "@python3_9_toolchains//:all",
+)
