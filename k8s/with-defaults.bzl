@@ -117,7 +117,7 @@ def {name}(**kwargs):
   {overrides}
   _k8s_object(**kwargs)
 """.format(
-        name = repository_ctx.attr.name,
+        name = repository_ctx.attr.name.rsplit('~', 1)[-1],
         overrides = "\n".join(overrides),
     ))
 
