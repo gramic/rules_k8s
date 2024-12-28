@@ -108,6 +108,7 @@ def _impl(repository_ctx):
             repository_ctx.attr.resolver,
         ))
 
+    print(repository_ctx.attr.name)
     repository_ctx.file("defaults.bzl", """
 load(
   "@io_bazel_rules_k8s//k8s:object.bzl",
@@ -117,7 +118,7 @@ def {name}(**kwargs):
   {overrides}
   _k8s_object(**kwargs)
 """.format(
-        name = repository_ctx.attr.name.rsplit('~', 1)[-1],
+        name = repository_ctx.attr.name.rsplit("+", 1)[-1],
         overrides = "\n".join(overrides),
     ))
 

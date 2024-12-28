@@ -1,9 +1,9 @@
 """Top level extensions to download repos.
 """
 
-load("//toolchains/kubectl:extensions.bzl", _kubectl_toolchain = "kubectl_toolchain")
 load("//k8s:repositories.bzl", _python_repositories = "python_repositories")
 load("//k8s:with-defaults.bzl", _k8s_defaults = "k8s_defaults")
+load("//toolchains/kubectl:extensions.bzl", _kubectl_toolchain = "kubectl_toolchain")
 
 kubectl_toolchain = _kubectl_toolchain
 

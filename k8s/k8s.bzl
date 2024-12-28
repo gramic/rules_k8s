@@ -26,18 +26,14 @@ load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 py_library(
     name = "yaml",
     srcs = glob(["lib/yaml/*.py"]),
-    imports = [
-        "lib",
-    ],
+    imports = ["lib"],
     visibility = ["//visibility:public"],
 )
 
 py_library(
     name = "yaml3",
     srcs = glob(["lib3/yaml/*.py"]),
-    imports = [
-        "lib3",
-    ],
+    imports = ["lib3"],
     visibility = ["//visibility:public"],
 )
 """
