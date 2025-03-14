@@ -37,6 +37,11 @@ bazel_dep(
     version = "0.0.0-v0.25.0",
     repo_name = "io_bazel_rules_docker",
 )
+git_override(
+    module_name = "rules_docker",
+    commit = "5ea3b5a65af5a13d789a05c95957c9abdba175d5",
+    remote = "https://github.com/aignas/rules_docker.git",
+)
 
 #####################################################################
 # rules_go
@@ -65,7 +70,7 @@ use_repo(
 # Python
 #####################################################################
 
-bazel_dep(name = "rules_python", version = "0.25.0")
+bazel_dep(name = "rules_python", version = "1.2.0")
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 pip.parse(

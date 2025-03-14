@@ -13,11 +13,11 @@
 # limitations under the License.
 """An implementation of k8s_object for interacting with an object of kind."""
 
-load(
-    "@io_bazel_rules_docker//container:layer_tools.bzl",
-    _get_layers = "get_from_target",
-    _layer_tools = "tools",
-)
+# load(
+#     "@io_bazel_rules_docker//container:layer_tools.bzl",
+#     _get_layers = "get_from_target",
+#     _layer_tools = "tools",
+# )
 load(
     "@io_bazel_rules_docker//skylib:label.bzl",
     _string_to_label = "string_to_label",
@@ -78,52 +78,6 @@ def _impl(ctx):
             ]))
 
     image_specs = []
-    if ctx.attr.images:
-        # Compute the set of layers from the image_targets.
-        image_target_dict = _string_to_label(
-            ctx.attr.image_targets,
-            ctx.attr.image_target_strings,
-        )
-
-        # Walk the collection of images passed and for each key/value pair
-        # collect the parts to pass to the resolver as --image_spec arguments.
-        # Each images entry results in a single --image_spec argument.
-        # As part of this walk, we also collect all of the image's input files
-        # to include as runfiles, so they are accessible to be pushed.
-        for tag in ctx.attr.images:
-            resolved_tag = ctx.expand_make_variables("tag", tag, {})
-            target = ctx.attr.images[tag]
-            image = _get_layers(ctx, ctx.label.name, image_target_dict[target])
-
-            image_spec = {"name": resolved_tag}
-            if image.get("legacy"):
-                image_spec["tarball"] = _runfiles(ctx, image["legacy"])
-                all_inputs.append(image["legacy"])
-
-            blobsums = image.get("blobsum", [])
-            image_spec["digest"] = ",".join([_runfiles(ctx, f) for f in blobsums])
-            all_inputs.extend(blobsums)
-
-            diff_ids = image.get("diff_id", [])
-            image_spec["diff_id"] = ",".join([_runfiles(ctx, f) for f in diff_ids])
-            all_inputs.extend(diff_ids)
-
-            blobs = image.get("zipped_layer", [])
-            image_spec["compressed_layer"] = ",".join([_runfiles(ctx, f) for f in blobs])
-            all_inputs.extend(blobs)
-
-            uncompressed_blobs = image.get("unzipped_layer", [])
-            image_spec["uncompressed_layer"] = ",".join([_runfiles(ctx, f) for f in uncompressed_blobs])
-            all_inputs.extend(uncompressed_blobs)
-
-            image_spec["config"] = _runfiles(ctx, image["config"])
-            all_inputs.append(image["config"])
-
-            # Quote the semi-colons so they don't complete the command.
-            image_specs.append("';'".join([
-                "%s=%s" % (k, v)
-                for (k, v) in image_spec.items()
-            ]))
 
     # Add workspace_status_command files to the args that are pushed to the resolver and adds the
     # files to the runfiles so they are available to the resolver executable.
@@ -136,11 +90,11 @@ def _impl(ctx):
 
     image_chroot_arg = ctx.attr.image_chroot
     image_chroot_arg = ctx.expand_make_variables("image_chroot", image_chroot_arg, {})
-    if "{" in ctx.attr.image_chroot:
-        image_chroot_file = ctx.actions.declare_file(ctx.label.name + ".image-chroot-name")
-        _resolve(ctx, ctx.attr.image_chroot, image_chroot_file)
-        image_chroot_arg = "$(cat %s)" % _runfiles(ctx, image_chroot_file)
-        all_inputs.append(image_chroot_file)
+    # if "{" in ctx.attr.image_chroot:
+    #     image_chroot_file = ctx.actions.declare_file(ctx.label.name + ".image-chroot-name")
+    #     _resolve(ctx, ctx.attr.image_chroot, image_chroot_file)
+    #     image_chroot_arg = "$(cat %s)" % _runfiles(ctx, image_chroot_file)
+    #     all_inputs.append(image_chroot_file)
 
     substitutions_file = ctx.actions.declare_file(ctx.label.name + ".substitutions.json")
     ctx.actions.write(
@@ -186,59 +140,60 @@ def _impl(ctx):
         ),
     ]
 
-def _resolve(ctx, string, output):
-    if len(ctx.attr.stamp_srcs):
-        stamps = ctx.files.stamp_srcs
-    else:
-        stamps = [ctx.info_file, ctx.version_file]
-    args = ctx.actions.args()
-    args.add_all(stamps, format_each = "--stamp-info-file=%s")
-    args.add(string, format = "--format=%s")
-    args.add(output, format = "--output=%s")
-    ctx.actions.run(
-        executable = ctx.executable._stamper,
-        arguments = [args],
-        inputs = stamps,
-        tools = [ctx.executable._stamper],
-        outputs = [output],
-        mnemonic = "Stamp",
-    )
-
+# def _resolve(ctx, string, output):
+#     if len(ctx.attr.stamp_srcs):
+#         stamps = ctx.files.stamp_srcs
+#     else:
+#         stamps = [ctx.info_file, ctx.version_file]
+#     args = ctx.actions.args()
+#     args.add_all(stamps, format_each = "--stamp-info-file=%s")
+#     args.add(string, format = "--format=%s")
+#     args.add(output, format = "--output=%s")
+#     ctx.actions.run(
+#         executable = ctx.executable._stamper,
+#         arguments = [args],
+#         inputs = stamps,
+#         tools = [ctx.executable._stamper],
+#         outputs = [output],
+#         mnemonic = "Stamp",
+#     )
+#
 def _common_impl(ctx):
     files = [ctx.executable.resolver]
 
     cluster_arg = ctx.attr.cluster
     cluster_arg = ctx.expand_make_variables("cluster", cluster_arg, {})
-    if "{" in ctx.attr.cluster:
-        cluster_file = ctx.actions.declare_file(ctx.label.name + ".cluster-name")
-        _resolve(ctx, ctx.attr.cluster, cluster_file)
-        cluster_arg = "$(cat %s)" % _runfiles(ctx, cluster_file)
-        files.append(cluster_file)
+    # if "{" in ctx.attr.cluster:
+    #     cluster_file = ctx.actions.declare_file(ctx.label.name + ".cluster-name")
+    #     _resolve(ctx, ctx.attr.cluster, cluster_file)
+    #     cluster_arg = "$(cat %s)" % _runfiles(ctx, cluster_file)
+    #     files.append(cluster_file)
 
     context_arg = ctx.attr.context
     context_arg = ctx.expand_make_variables("context", context_arg, {})
-    if "{" in ctx.attr.context:
-        context_file = ctx.actions.declare_file(ctx.label.name + ".context-name")
-        _resolve(ctx, ctx.attr.context, context_file)
-        context_arg = "$(cat %s)" % _runfiles(ctx, context_file)
-        files.append(context_file)
+    # if "{" in ctx.attr.context:
+    #     context_file = ctx.actions.declare_file(ctx.label.name + ".context-name")
+    #     _resolve(ctx, ctx.attr.context, context_file)
+    #     context_arg = "$(cat %s)" % _runfiles(ctx, context_file)
+    #     files.append(context_file)
 
     user_arg = ctx.attr.user
     user_arg = ctx.expand_make_variables("user", user_arg, {})
-    if "{" in ctx.attr.user:
-        user_file = ctx.actions.declare_file(ctx.label.name + ".user-name")
-        _resolve(ctx, ctx.attr.user, user_file)
-        user_arg = "$(cat %s)" % _runfiles(ctx, user_file)
-        files.append(user_file)
+    # if "{" in ctx.attr.user:
+    #     user_file = ctx.actions.declare_file(ctx.label.name + ".user-name")
+    #     _resolve(ctx, ctx.attr.user, user_file)
+    #     user_arg = "$(cat %s)" % _runfiles(ctx, user_file)
+    #     files.append(user_file)
 
     namespace_arg = ctx.attr.namespace
     namespace_arg = ctx.expand_make_variables("namespace", namespace_arg, {})
-    if "{" in ctx.attr.namespace:
-        namespace_file = ctx.actions.declare_file(ctx.label.name + ".namespace-name")
-        _resolve(ctx, ctx.attr.namespace, namespace_file)
-        namespace_arg = "$(cat %s)" % _runfiles(ctx, namespace_file)
-        files.append(namespace_file)
 
+    # if "{" in ctx.attr.namespace:
+    #     namespace_file = ctx.actions.declare_file(ctx.label.name + ".namespace-name")
+    #     _resolve(ctx, ctx.attr.namespace, namespace_file)
+    #     namespace_arg = "$(cat %s)" % _runfiles(ctx, namespace_file)
+    #     files.append(namespace_file)
+    #
     if namespace_arg:
         namespace_arg = "--namespace=\"" + namespace_arg + "\""
 
@@ -324,12 +279,12 @@ _common_attrs = {
     # emitted by the workspace_status command.
     "stamp_srcs": attr.label_list(),
     "user": attr.string(),
-    "_stamper": attr.label(
-        default = Label("//k8s:stamper"),
-        cfg = "host",
-        executable = True,
-        allow_files = True,
-    ),
+    # "_stamper": attr.label(
+    #     default = Label("//k8s:stamper"),
+    #     cfg = "host",
+    #     executable = True,
+    #     allow_files = True,
+    # ),
 }
 
 _k8s_object = rule(
@@ -357,7 +312,6 @@ _k8s_object = rule(
             ),
         },
         _common_attrs,
-        _layer_tools,
     ),
     executable = True,
     implementation = _impl,
