@@ -55,60 +55,60 @@ def _impl(repository_ctx):
     overrides = []
     if repository_ctx.attr.cluster:
         overrides.append(_override(
-            repository_ctx.attr.name,
+            repository_ctx.original_name,
             "cluster",
             repository_ctx.attr.cluster,
         ))
 
     if repository_ctx.attr.context:
         overrides.append(_override(
-            repository_ctx.attr.name,
+            repository_ctx.original_name,
             "context",
             repository_ctx.attr.context,
         ))
     if repository_ctx.attr.user:
         overrides.append(_override(
-            repository_ctx.attr.name,
+            repository_ctx.original_name,
             "user",
             repository_ctx.attr.user,
         ))
 
     if repository_ctx.attr.namespace:
         overrides.append(_override(
-            repository_ctx.attr.name,
+            repository_ctx.original_name,
             "namespace",
             repository_ctx.attr.namespace,
         ))
 
     if repository_ctx.attr.kind:
         overrides.append(_override(
-            repository_ctx.attr.name,
+            repository_ctx.original_name,
             "kind",
             repository_ctx.attr.kind,
         ))
 
     if repository_ctx.attr.kubeconfig:
         overrides.append(_override(
-            repository_ctx.attr.name,
+            repository_ctx.original_name,
             "kubeconfig",
             repository_ctx.attr.kubeconfig,
         ))
 
     if repository_ctx.attr.image_chroot:
         overrides.append(_override(
-            repository_ctx.attr.name,
+            repository_ctx.original_name,
             "image_chroot",
             repository_ctx.attr.image_chroot,
         ))
 
     if repository_ctx.attr.resolver:
         overrides.append(_override(
-            repository_ctx.attr.name,
+            repository_ctx.original_name,
             "resolver",
             repository_ctx.attr.resolver,
         ))
 
-    print(repository_ctx.attr.name)
+    print(repository_ctx.original_name)
     repository_ctx.file("defaults.bzl", """
 load(
   "@io_bazel_rules_k8s//k8s:object.bzl",
@@ -118,7 +118,7 @@ def {name}(**kwargs):
   {overrides}
   _k8s_object(**kwargs)
 """.format(
-        name = repository_ctx.attr.name.rsplit("+", 1)[-1],
+        name = repository_ctx.original_name.rsplit("+", 1)[-1],
         overrides = "\n".join(overrides),
     ))
 

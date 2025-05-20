@@ -1,22 +1,18 @@
 """Top level extensions to download repos.
 """
 
-load("//k8s:repositories.bzl", _python_repositories = "python_repositories")
 load("//k8s:with-defaults.bzl", _k8s_defaults = "k8s_defaults")
 load("//toolchains/kubectl:extensions.bzl", _kubectl_toolchain = "kubectl_toolchain")
 
 kubectl_toolchain = _kubectl_toolchain
 
-def _python_repositories_impl(_ctx):
-    _python_repositories()
-
-python_repositories = module_extension(
-    implementation = _python_repositories_impl,
-)
-
 # k8s.defaults
 
 defaults_attrs = {
+    "name": attr.string(
+        mandatory = True,
+        doc = "The name of the repo.",
+    ),
     "cluster": attr.string(mandatory = False),
     "context": attr.string(mandatory = False),
     "image_chroot": attr.string(mandatory = False),
@@ -27,14 +23,7 @@ defaults_attrs = {
     "user": attr.string(mandatory = False),
 }
 
-_tag_attrs = {
-    "name": attr.string(
-        mandatory = True,
-        doc = "The name of the repo.",
-    ),
-}
-_tag_attrs.update(**defaults_attrs)
-_defaults_tag = tag_class(attrs = _tag_attrs)
+_defaults_tag = tag_class(attrs = defaults_attrs)
 
 def _impl(ctx):
     for mod in ctx.modules:
