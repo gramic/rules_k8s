@@ -18,6 +18,7 @@ import (
 	"github.com/bazelbuild/rules_docker/container/go/pkg/utils"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"gopkg.in/yaml.v2"
 )
@@ -163,6 +164,38 @@ func (r *Resolver) Resolve() (resolvedTemplate string, err error) {
 			}
 
 			resolvedImages[s.name] = fmt.Sprintf("%s/%s@%v", ref.Context().RegistryStr(), ref.Context().RepositoryStr(), desc.Manifests[0].Digest)
+
+			if !r.flags.NoPush {
+				if s.directory != "" {
+					l, err := layout.ImageIndexFromPath(s.directory)
+					if err != nil {
+						return "", fmt.Errorf("unable to load OCI layout from %s: %v", s.directory, err)
+					}
+					idxManifest, err := l.IndexManifest()
+					if err != nil {
+						return "", fmt.Errorf("unable to read OCI index manifest: %v", err)
+					}
+					if len(idxManifest.Manifests) == 0 {
+						return "", fmt.Errorf("no manifests found in OCI layout index")
+					}
+					img, err := l.Image(idxManifest.Manifests[0].Digest)
+					if err != nil {
+						return "", fmt.Errorf("unable to get image from OCI layout index: %v", err)
+					}
+					auth, err := authn.DefaultKeychain.Resolve(ref.Context())
+					if err != nil {
+						return "", fmt.Errorf("unable to get authenticator for image %v: %v", ref.Name(), err)
+					}
+					if err := remote.Write(ref, img, remote.WithAuth(auth)); err != nil {
+						return "", fmt.Errorf("unable to push OCI image %v: %v", ref.Name(), err)
+					}
+				} else if s.manifest != "" {
+					// For rules_img, only the metadata JSON files are output.
+					// Pushing the full image requires pushing the layers, which are not structured in a single OCI layout directory.
+					// We print a warning to let the user know they should run the native push target.
+					log.Printf("Warning: Pushing rules_img targets directly via rules_k8s resolver is not supported. Please run the native push target first: bazel run %s", s.name)
+				}
+			}
 		}
 	}
 
