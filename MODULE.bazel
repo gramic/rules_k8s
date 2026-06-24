@@ -42,6 +42,8 @@ git_override(
     commit = "5ea3b5a65af5a13d789a05c95957c9abdba175d5",
     remote = "https://github.com/aignas/rules_docker.git",
 )
+# rules_img
+bazel_dep(name = "rules_img", version = "0.3.12")
 
 #####################################################################
 # rules_go

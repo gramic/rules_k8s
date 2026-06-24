@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 
@@ -57,7 +58,7 @@ func RegisterFlags(flagset *flag.FlagSet) *Flags {
 	flagset.StringVar(&flags.K8sTemplate, FlagK8sTemplate, "", "The k8s YAML template file to resolve.")
 	flagset.StringVar(&flags.SubstitutionsFile, FlagSubstitutionsFile, "", "A file with a list of substitutions that were made in the YAML template. Any stamp values that appear are stamped by the resolver.")
 	flagset.BoolVar(&flags.AllowUnusedImages, FlagAllowUnusedImages, false, "Allow images that don't appear in the JSON. This is useful when generating multiple SKUs of a k8s_object, only some of which use a particular image.")
-	flagset.BoolVar(&flags.NoPush, FlagNoPush, false, "Don't push images after resolving digests.")
+	flagset.BoolVar(&flags.NoPush, FlagNoPush, true, "Don't push images after resolving digests.")
 	flagset.Var(&flags.ImgSpecs, FlagImgSpecs, "Associative lists of the constituent elements of a docker image.")
 	flagset.Var(&flags.StampInfoFile, FlagStampInfoFile, "One or more Bazel stamp info files.")
 	flagset.Var(&flags.OCIImages, FlagOCIImages, "Associative lists of constituent elements of an OCI image.")
@@ -166,7 +167,21 @@ func (r *Resolver) Resolve() (resolvedTemplate string, err error) {
 			resolvedImages[s.name] = fmt.Sprintf("%s/%s@%v", ref.Context().RegistryStr(), ref.Context().RepositoryStr(), desc.Manifests[0].Digest)
 
 			if !r.flags.NoPush {
-				if s.directory != "" {
+				if s.pusher != "" {
+					log.Printf("Pushing OCI image using rules_img push executable: %s", s.pusher)
+					cmd := exec.Command(s.pusher)
+					cmd.Stdout = os.Stderr
+					cmd.Stderr = os.Stderr
+					cmd.Env = os.Environ()
+					if idx := strings.Index(s.pusher, ".runfiles"); idx != -1 {
+						runfilesDir := s.pusher[:idx+len(".runfiles")]
+						cmd.Env = append(cmd.Env, "RUNFILES_DIR="+runfilesDir)
+						cmd.Env = append(cmd.Env, "RUNFILES_MANIFEST_FILE="+runfilesDir+"/MANIFEST")
+					}
+					if err := cmd.Run(); err != nil {
+						return "", fmt.Errorf("unable to run pusher %s: %w", s.pusher, err)
+					}
+				} else if s.directory != "" {
 					l, err := layout.ImageIndexFromPath(s.directory)
 					if err != nil {
 						return "", fmt.Errorf("unable to load OCI layout from %s: %v", s.directory, err)
@@ -190,10 +205,11 @@ func (r *Resolver) Resolve() (resolvedTemplate string, err error) {
 						return "", fmt.Errorf("unable to push OCI image %v: %v", ref.Name(), err)
 					}
 				} else if s.manifest != "" {
-					// For rules_img, only the metadata JSON files are output.
-					// Pushing the full image requires pushing the layers, which are not structured in a single OCI layout directory.
-					// We print a warning to let the user know they should run the native push target.
-					log.Printf("Warning: Pushing rules_img targets directly via rules_k8s resolver is not supported. Please run the native push target first: bazel run %s", s.name)
+					pushTarget := s.target
+					if idx := strings.Index(s.target, ":"); idx != -1 {
+						pushTarget = s.target[:idx] + ":push"
+					}
+					log.Printf("Warning: Pushing rules_img targets directly via rules_k8s resolver is not supported. Please run the native push target first: bazel run %s", pushTarget)
 				}
 			}
 		}
@@ -228,6 +244,8 @@ type ociSpec struct {
 	directory string
 	manifest  string
 	config    string
+	target    string
+	pusher    string
 }
 
 func (s *ociSpec) ImageDescriptor() (*imageDescriptor, error) {
@@ -309,6 +327,10 @@ func parseOCISpec(spec string) (ociSpec, error) {
 			result.manifest = splitFields[1]
 		case "config":
 			result.config = splitFields[1]
+		case "target":
+			result.target = splitFields[1]
+		case "pusher":
+			result.pusher = splitFields[1]
 		default:
 			return ociSpec{}, fmt.Errorf("unknown oci spec field %q", splitFields[0])
 		}

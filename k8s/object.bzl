@@ -26,6 +26,11 @@ load(
     "@io_bazel_rules_docker//skylib:path.bzl",
     _get_runfile_path = "runfile",
 )
+load(
+    "@rules_img//img:providers.bzl",
+    "DeployInfo",
+    "ImageManifestInfo",
+)
 
 def _runfiles(ctx, f):
     return "${RUNFILES}/%s" % _get_runfile_path(ctx, f)
@@ -49,6 +54,7 @@ def _impl(ctx):
     """Core implementation of k8s_object."""
 
     all_inputs = [ctx.file.template]
+    transitive_runfiles = []
 
     oci_image_specs = []
     if ctx.attr.oci_images:
@@ -62,22 +68,46 @@ def _impl(ctx):
             resolved_tag = ctx.expand_make_variables("tag", tag, {})
             target = ctx.attr.oci_images[tag]
 
-            oci_image_spec = {"name": resolved_tag}
+            oci_image_spec = {
+                "name": resolved_tag,
+                "target": str(target),
+            }
 
             label = image_target_dict[target]
+            transitive_runfiles.append(label[DefaultInfo].default_runfiles)
 
             # Compute directory or manifest/config paths.
-            files = label.files.to_list()
-            if len(files) == 1 and files[0].is_directory:
-                oci_image_spec["directory"] = _runfiles(ctx, files[0])
-                all_inputs.append(files[0])
+            manifest_info = None
+            pusher_exe = None
+            if DeployInfo in label:
+                manifest_info = label[DeployInfo].image
+                if label[DefaultInfo].files_to_run.executable:
+                    pusher_exe = label[DefaultInfo].files_to_run.executable
+            elif ImageManifestInfo in label:
+                manifest_info = label[ImageManifestInfo]
+
+            if manifest_info:
+                if hasattr(manifest_info, "manifest") and manifest_info.manifest:
+                    oci_image_spec["manifest"] = _runfiles(ctx, manifest_info.manifest)
+                    all_inputs.append(manifest_info.manifest)
+                if hasattr(manifest_info, "config") and manifest_info.config:
+                    oci_image_spec["config"] = _runfiles(ctx, manifest_info.config)
+                    all_inputs.append(manifest_info.config)
+                if pusher_exe:
+                    oci_image_spec["pusher"] = _runfiles(ctx, pusher_exe)
+                    all_inputs.append(pusher_exe)
             else:
-                for file in files:
-                    if file.basename.endswith("manifest.json"):
-                        oci_image_spec["manifest"] = _runfiles(ctx, file)
-                    elif file.basename.endswith("config.json"):
-                        oci_image_spec["config"] = _runfiles(ctx, file)
-                    all_inputs.append(file)
+                files = label.files.to_list()
+                if len(files) == 1 and files[0].is_directory:
+                    oci_image_spec["directory"] = _runfiles(ctx, files[0])
+                    all_inputs.append(files[0])
+                else:
+                    for file in files:
+                        if file.basename.endswith("manifest.json"):
+                            oci_image_spec["manifest"] = _runfiles(ctx, file)
+                        elif file.basename.endswith("config.json"):
+                            oci_image_spec["config"] = _runfiles(ctx, file)
+                        all_inputs.append(file)
 
             # Quote the semi-colons so they don't complete the command.
             oci_image_specs.append("';'".join([
@@ -137,14 +167,21 @@ def _impl(ctx):
         output = ctx.outputs.executable,
     )
 
+    # Start with resolver runfiles
+    runfiles = ctx.runfiles(
+        files = [
+            ctx.executable.resolver,
+        ] + all_inputs,
+        transitive_files = ctx.attr.resolver[DefaultInfo].default_runfiles.files,
+    )
+
+    # Merge OCI target runfiles (preserves symlinks/root_symlinks)
+    for r in transitive_runfiles:
+        runfiles = runfiles.merge(r)
+
     return [
         DefaultInfo(
-            runfiles = ctx.runfiles(
-                files = [
-                    ctx.executable.resolver,
-                ] + all_inputs,
-                transitive_files = ctx.attr.resolver[DefaultInfo].default_runfiles.files,
-            ),
+            runfiles = runfiles,
         ),
     ]
 
@@ -257,9 +294,15 @@ def _common_impl(ctx):
             output = ctx.outputs.executable,
         )
 
+    runfiles = ctx.runfiles(files = files, transitive_files = extrafiles)
+    if hasattr(ctx.attr, "resolved") and ctx.attr.resolved:
+        runfiles = runfiles.merge(ctx.attr.resolved[DefaultInfo].default_runfiles)
+    if hasattr(ctx.attr, "reverser") and ctx.attr.reverser:
+        runfiles = runfiles.merge(ctx.attr.reverser[DefaultInfo].default_runfiles)
+
     return [
         DefaultInfo(
-            runfiles = ctx.runfiles(files = files, transitive_files = extrafiles),
+            runfiles = runfiles,
         ),
     ]
 
