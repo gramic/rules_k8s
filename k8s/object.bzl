@@ -66,10 +66,18 @@ def _impl(ctx):
 
             label = image_target_dict[target]
 
-            # This always just contained one file/directory.
-            for file in label.files.to_list():
-                oci_image_spec["directory"] = _runfiles(ctx, file)
-                all_inputs.append(file)
+            # Compute directory or manifest/config paths.
+            files = label.files.to_list()
+            if len(files) == 1 and files[0].is_directory:
+                oci_image_spec["directory"] = _runfiles(ctx, files[0])
+                all_inputs.append(files[0])
+            else:
+                for file in files:
+                    if file.basename.endswith("manifest.json"):
+                        oci_image_spec["manifest"] = _runfiles(ctx, file)
+                    elif file.basename.endswith("config.json"):
+                        oci_image_spec["config"] = _runfiles(ctx, file)
+                    all_inputs.append(file)
 
             # Quote the semi-colons so they don't complete the command.
             oci_image_specs.append("';'".join([

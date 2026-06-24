@@ -2,6 +2,8 @@ package resolver
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -156,6 +158,10 @@ func (r *Resolver) Resolve() (resolvedTemplate string, err error) {
 
 			desc, err := s.ImageDescriptor()
 
+			if err != nil {
+				return "", fmt.Errorf("unable to get image descriptor for %q: %v", s.name, err)
+			}
+
 			resolvedImages[s.name] = fmt.Sprintf("%s/%s@%v", ref.Context().RegistryStr(), ref.Context().RepositoryStr(), desc.Manifests[0].Digest)
 		}
 	}
@@ -187,34 +193,51 @@ type imageDescriptor struct {
 type ociSpec struct {
 	name      string
 	directory string
+	manifest  string
+	config    string
 }
 
 func (s *ociSpec) ImageDescriptor() (*imageDescriptor, error) {
-	// Read digest from index.json
-	/*
-		{
-		  "schemaVersion": 2,
-		  "mediaType": "application/vnd.oci.image.index.v1+json",
-		  "manifests": [
-		    {
-		      "mediaType": "application/vnd.oci.image.manifest.v1+json",
-		      "digest": "sha256:3f1e8f6138a66607f7eb17c072795145b86878fc75687b05a23f793a3ab206cd",
-		      "size": 2555
-		    }
-		  ]
+	if s.manifest != "" {
+		data, err := os.ReadFile(s.manifest)
+		if err != nil {
+			return &imageDescriptor{}, fmt.Errorf("could not read manifest: %w", err)
 		}
-	*/
-	path := fmt.Sprintf("%s/index.json", s.directory)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return &imageDescriptor{}, fmt.Errorf("could not read index.json: %w", err)
+		hasher := sha256.New()
+		hasher.Write(data)
+		digest := "sha256:" + hex.EncodeToString(hasher.Sum(nil))
+
+		d := &imageDescriptor{
+			SchemaVersion: 2,
+			MediaType:     "application/vnd.oci.image.index.v1+json",
+		}
+		d.Manifests = append(d.Manifests, struct {
+			MediaType string
+			Digest    string
+			Size      int
+		}{
+			MediaType: "application/vnd.oci.image.manifest.v1+json",
+			Digest:    digest,
+			Size:      len(data),
+		})
+		return d, nil
 	}
-	d := &imageDescriptor{}
-	err = json.Unmarshal(data, &d)
-	if err != nil {
-		return &imageDescriptor{}, fmt.Errorf("could not unmarshal index.json: %w", err)
+
+	if s.directory != "" {
+		path := fmt.Sprintf("%s/index.json", s.directory)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return &imageDescriptor{}, fmt.Errorf("could not read index.json: %w", err)
+		}
+		d := &imageDescriptor{}
+		err = json.Unmarshal(data, &d)
+		if err != nil {
+			return &imageDescriptor{}, fmt.Errorf("could not unmarshal index.json: %w", err)
+		}
+		return d, validateImageDescriptor(d)
 	}
-	return d, validateImageDescriptor(d)
+
+	return &imageDescriptor{}, fmt.Errorf("neither directory nor manifest is specified in OCI image spec")
 }
 
 func validateImageDescriptor(d *imageDescriptor) error {
@@ -249,6 +272,10 @@ func parseOCISpec(spec string) (ociSpec, error) {
 			result.name = splitFields[1]
 		case "directory":
 			result.directory = splitFields[1]
+		case "manifest":
+			result.manifest = splitFields[1]
+		case "config":
+			result.config = splitFields[1]
 		default:
 			return ociSpec{}, fmt.Errorf("unknown oci spec field %q", splitFields[0])
 		}
