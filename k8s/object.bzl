@@ -459,7 +459,7 @@ _k8s_object_delete = rule(
                 allow_files = True,
             ),
             "reverser": attr.label(
-                default = Label("//k8s:reverser"),
+                default = Label("//k8s/go/cmd/reverser"),
                 cfg = "target",
                 executable = True,
                 allow_files = True,

@@ -12,23 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-package(default_visibility = ["//visibility:public"])
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
 
-exports_files([
-    "apply.sh.tpl",
-    "create.sh.tpl",
-    "replace.sh.tpl",
-    "resolve.sh.tpl",
-    "resolve-all.sh.tpl",
-    "delete.sh.tpl",
-    "describe.sh.tpl",
-    "diff.sh.tpl",
-])
+go_library(
+    name = "reverser_lib",
+    srcs = ["reverser.go"],
+    importpath = "github.com/bazelbuild/rules_k8s/k8s/go/cmd/reverser",
+    visibility = ["//visibility:private"],
+    deps = ["@in_gopkg_yaml_v2//:go_default_library"],
+)
 
-alias(
+go_binary(
     name = "reverser",
-    actual = "//k8s/go/cmd/reverser",
+    embed = [":reverser_lib"],
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "reverser_test",
+    srcs = ["reverser_test.go"],
+    embed = [":reverser_lib"],
 )
